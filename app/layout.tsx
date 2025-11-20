@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "语音转字幕服务",
-  description: "上传音频文件，自动生成多语种字幕",
+  title: "语音转字幕服务 | AI 智能转写",
+  description: "专业的 AI 语音识别服务，支持多语种自动转写，快速生成高质量字幕文件",
 };
 
 export default function RootLayout({
@@ -12,8 +12,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN">
-      <body>{children}</body>
+    <html lang="zh-CN" data-theme="light">
+      <body className="antialiased">{children}</body>
     </html>
   );
 }
