@@ -1,6 +1,4 @@
-import { writeFile, readFile, mkdir } from "fs/promises";
-import { join } from "path";
-import { existsSync } from "fs";
+import { supabase } from "./supabase";
 
 export interface HistoryRecord {
   id: string;
@@ -12,31 +10,32 @@ export interface HistoryRecord {
   createdAt: string;
 }
 
-const HISTORY_DIR = join(process.cwd(), ".history");
-const HISTORY_FILE = join(HISTORY_DIR, "records.json");
-
-/**
- * 确保历史记录目录存在
- */
-async function ensureHistoryDir() {
-  if (!existsSync(HISTORY_DIR)) {
-    await mkdir(HISTORY_DIR, { recursive: true });
-  }
-}
-
 /**
  * 读取历史记录
  */
 export async function getHistory(): Promise<HistoryRecord[]> {
   try {
-    await ensureHistoryDir();
-    
-    if (!existsSync(HISTORY_FILE)) {
+    const { data, error } = await supabase
+      .from('transcription_history')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error("读取历史记录失败:", error);
       return [];
     }
 
-    const data = await readFile(HISTORY_FILE, "utf-8");
-    return JSON.parse(data);
+    // 转换数据库字段到应用字段
+    return (data || []).map(record => ({
+      id: record.id,
+      fileName: record.file_name,
+      language: record.language,
+      languageLabel: record.language_label,
+      segmentCount: record.segment_count,
+      srtContent: record.srt_content,
+      createdAt: record.created_at,
+    }));
   } catch (error) {
     console.error("读取历史记录失败:", error);
     return [];
@@ -48,25 +47,33 @@ export async function getHistory(): Promise<HistoryRecord[]> {
  */
 export async function addHistory(record: Omit<HistoryRecord, "id" | "createdAt">): Promise<HistoryRecord> {
   try {
-    await ensureHistoryDir();
-    
-    const history = await getHistory();
-    
-    const newRecord: HistoryRecord = {
-      ...record,
-      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: new Date().toISOString(),
+    const { data, error } = await supabase
+      .from('transcription_history')
+      .insert({
+        file_name: record.fileName,
+        language: record.language,
+        language_label: record.languageLabel,
+        segment_count: record.segmentCount,
+        srt_content: record.srtContent,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("保存历史记录失败:", error);
+      throw new Error("保存历史记录失败");
+    }
+
+    // 转换数据库字段到应用字段
+    return {
+      id: data.id,
+      fileName: data.file_name,
+      language: data.language,
+      languageLabel: data.language_label,
+      segmentCount: data.segment_count,
+      srtContent: data.srt_content,
+      createdAt: data.created_at,
     };
-
-    // 将新记录添加到开头
-    history.unshift(newRecord);
-
-    // 只保留最近50条记录
-    const limitedHistory = history.slice(0, 50);
-
-    await writeFile(HISTORY_FILE, JSON.stringify(limitedHistory, null, 2), "utf-8");
-
-    return newRecord;
   } catch (error) {
     console.error("保存历史记录失败:", error);
     throw new Error("保存历史记录失败");
@@ -78,9 +85,15 @@ export async function addHistory(record: Omit<HistoryRecord, "id" | "createdAt">
  */
 export async function deleteHistory(id: string): Promise<void> {
   try {
-    const history = await getHistory();
-    const filteredHistory = history.filter((record) => record.id !== id);
-    await writeFile(HISTORY_FILE, JSON.stringify(filteredHistory, null, 2), "utf-8");
+    const { error } = await supabase
+      .from('transcription_history')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error("删除历史记录失败:", error);
+      throw new Error("删除历史记录失败");
+    }
   } catch (error) {
     console.error("删除历史记录失败:", error);
     throw new Error("删除历史记录失败");
@@ -92,8 +105,15 @@ export async function deleteHistory(id: string): Promise<void> {
  */
 export async function clearHistory(): Promise<void> {
   try {
-    await ensureHistoryDir();
-    await writeFile(HISTORY_FILE, JSON.stringify([], null, 2), "utf-8");
+    const { error } = await supabase
+      .from('transcription_history')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000'); // 删除所有记录
+
+    if (error) {
+      console.error("清空历史记录失败:", error);
+      throw new Error("清空历史记录失败");
+    }
   } catch (error) {
     console.error("清空历史记录失败:", error);
     throw new Error("清空历史记录失败");

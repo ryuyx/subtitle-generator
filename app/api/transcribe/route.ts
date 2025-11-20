@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { IFlyTekService } from "@/lib/iflytek";
 import { generateSRT } from "@/lib/subtitle-utils";
 import { addHistory } from "@/lib/history";
-import { writeFile, unlink } from "fs/promises";
-import { join } from "path";
-import { tmpdir } from "os";
-import { randomBytes } from "crypto";
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,53 +37,38 @@ export async function POST(request: NextRequest) {
     const bytes = await audioFile.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // 保存临时文件（可选，用于调试）
-    const tempFileName = `${randomBytes(16).toString("hex")}.audio`;
-    const tempFilePath = join(tmpdir(), tempFileName);
-    
-    try {
-      await writeFile(tempFilePath, buffer);
+    // 调用讯飞API进行语音识别（直接使用 Buffer，不保存临时文件）
+    const iflytek = new IFlyTekService();
+    const segments = await iflytek.transcribe(buffer, language);
 
-      // 调用讯飞API进行语音识别
-      const iflytek = new IFlyTekService();
-      const segments = await iflytek.transcribe(buffer, language);
-
-      if (!segments || segments.length === 0) {
-        return NextResponse.json(
-          { error: "未识别到有效内容" },
-          { status: 400 }
-        );
-      }
-
-      // 生成SRT字幕
-      const srtContent = generateSRT(segments);
-
-      // 保存历史记录
-      const languageLabel = language === "autodialect" 
-        ? "中英+方言" 
-        : "37语种";
-      
-      await addHistory({
-        fileName: audioFile.name,
-        language,
-        languageLabel,
-        segmentCount: segments.length,
-        srtContent,
-      });
-
-      // 清理临时文件
-      await unlink(tempFilePath).catch(() => {});
-
-      return NextResponse.json({
-        success: true,
-        srtContent,
-        segmentCount: segments.length,
-      });
-    } catch (error) {
-      // 清理临时文件
-      await unlink(tempFilePath).catch(() => {});
-      throw error;
+    if (!segments || segments.length === 0) {
+      return NextResponse.json(
+        { error: "未识别到有效内容" },
+        { status: 400 }
+      );
     }
+
+    // 生成SRT字幕
+    const srtContent = generateSRT(segments);
+
+    // 保存历史记录到 Supabase
+    const languageLabel = language === "autodialect" 
+      ? "中英+方言" 
+      : "37语种";
+    
+    await addHistory({
+      fileName: audioFile.name,
+      language,
+      languageLabel,
+      segmentCount: segments.length,
+      srtContent,
+    });
+
+    return NextResponse.json({
+      success: true,
+      srtContent,
+      segmentCount: segments.length,
+    });
   } catch (error: any) {
     console.error("转换错误:", error);
     
