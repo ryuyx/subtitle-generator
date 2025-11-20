@@ -71,15 +71,19 @@ export class IFlyTekService {
 
   /**
    * 生成ISO8601时间格式 yyyy-MM-dd'T'HH:mm:ss+0800
+   * 使用UTC时间转换为北京时间(UTC+8)
    */
   private generateDateTime(): string {
     const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
+    // 转换为北京时间(UTC+8)
+    const beijingTime = new Date(now.getTime() + (8 * 60 * 60 * 1000) + now.getTimezoneOffset() * 60 * 1000);
+    
+    const year = beijingTime.getUTCFullYear();
+    const month = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(beijingTime.getUTCDate()).padStart(2, '0');
+    const hours = String(beijingTime.getUTCHours()).padStart(2, '0');
+    const minutes = String(beijingTime.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(beijingTime.getUTCSeconds()).padStart(2, '0');
     
     return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+0800`;
   }
@@ -166,9 +170,10 @@ export class IFlyTekService {
       console.log("准备上传音频:", {
         appId: this.config.appId,
         dateTime: dateTime,
-        signature: signature,
+        signatureRandom: signatureRandom,
         fileSize: audioBuffer.length,
         language: params.language,
+        uploadUrl: uploadUrl.split('?')[0], // 只显示基础URL
       });
 
       const response = await axios.post<UploadResponse>(
@@ -186,6 +191,13 @@ export class IFlyTekService {
       console.log("上传响应:", response.data);
 
       if (response.data.code !== "000000") {
+        // 记录签名超时等错误的详细信息
+        console.error("上传失败详情:", {
+          code: response.data.code,
+          descInfo: response.data.descInfo,
+          dateTime: dateTime,
+          serverTime: new Date().toISOString(),
+        });
         throw new Error(`上传失败: ${response.data.descInfo}`);
       }
 
