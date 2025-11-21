@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTheme } from "next-themes";
+import { FiMoon, FiSun, FiMonitor, FiTrash2, FiEye, FiDownload, FiCopy, FiFileText, FiX, FiCheck, FiClock, FiCalendar, FiSearch } from "react-icons/fi";
 
 interface HistoryRecord {
   id: string;
@@ -48,14 +50,19 @@ export default function Home() {
   const [errorDetails, setErrorDetails] = useState<ErrorDetails | null>(null);
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<HistoryRecord | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   
   const [progressStage, setProgressStage] = useState<string>("");
   const [progressMessage, setProgressMessage] = useState<string>("");
   const [orderId, setOrderId] = useState<string>("");
   const [progressPercent, setProgressPercent] = useState<number>(0);
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     loadHistory();
   }, []);
 
@@ -218,9 +225,28 @@ export default function Home() {
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadRecord = (record: HistoryRecord) => {
+    const blob = new Blob([record.srtContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${record.fileName.replace(/\.[^/.]+$/, "")}.srt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (err) {
+      console.error("复制失败:", err);
+    }
+  };
+
   const handleViewHistory = (record: HistoryRecord) => {
-    setResult(record.srtContent);
-    setShowHistory(false);
+    setSelectedRecord(record);
   };
 
   const handleDeleteHistory = async (id: string) => {
@@ -256,61 +282,119 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen gradient-bg-light">
-      {/* 顶部导航栏 */}
-      <div className="navbar glass-effect shadow-lg sticky top-0 z-50">
+    <div className="min-h-screen bg-base-100 text-base-content font-sans">
+      {/* Navbar */}
+      <div className="navbar bg-base-100/80 backdrop-blur-md border-b border-base-200 sticky top-0 z-50 px-4 md:px-8">
         <div className="flex-1">
-          <a className="btn btn-ghost text-xl font-bold">
-            <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              AI 字幕生成器
-            </span>
+          <a className="btn btn-ghost text-xl font-bold gap-2 normal-case">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-primary">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+            </svg>
+            <span>SubtitleAI</span>
           </a>
         </div>
-        <div className="flex-none">
-          <div className="badge badge-primary badge-lg">智能转写</div>
+        <div className="flex-none hidden md:flex gap-2 items-center">
+          {mounted && (
+            <div className="dropdown dropdown-end mr-2">
+              <label tabIndex={0} className="btn btn-ghost btn-circle btn-sm">
+                {theme === 'dark' ? <FiMoon className="w-5 h-5" /> : 
+                 theme === 'light' ? <FiSun className="w-5 h-5" /> : 
+                 <FiMonitor className="w-5 h-5" />}
+              </label>
+              <ul tabIndex={0} className="menu dropdown-content mt-3 p-2 shadow bg-base-100 rounded-box w-52 z-50">
+                <li><a onClick={() => setTheme('light')} className={theme === 'light' ? 'active' : ''}><FiSun /> 明亮模式</a></li>
+                <li><a onClick={() => setTheme('dark')} className={theme === 'dark' ? 'active' : ''}><FiMoon /> 暗黑模式</a></li>
+                <li><a onClick={() => setTheme('system')} className={theme === 'system' ? 'active' : ''}><FiMonitor /> 跟随系统</a></li>
+              </ul>
+            </div>
+          )}
+          <button className="btn btn-ghost btn-sm">产品功能</button>
+          <button className="btn btn-ghost btn-sm">价格方案</button>
+          <div className="divider divider-horizontal mx-1"></div>
+          <button className="btn btn-ghost btn-sm">登录</button>
+          <button className="btn btn-primary btn-sm">免费注册</button>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-8 md:py-12 space-y-8">
+      <main className="max-w-6xl mx-auto px-4 py-12 space-y-16">
         {/* Hero Section */}
-        <div className="text-center space-y-6 py-8">
-          <div className="inline-block">
-            <div className="text-6xl md:text-7xl mb-6 animate-float">🎵</div>
-          </div>
-          <h1 className="text-4xl md:text-6xl font-bold">
-            <span className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-              语音转字幕服务
-            </span>
+        <div className="text-center space-y-8 py-12">
+          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight">
+            专业的 <span className="text-primary">AI 语音转字幕</span> 服务
           </h1>
-          <p className="text-xl md:text-2xl text-base-content/70 max-w-2xl mx-auto">
-            AI 驱动的智能语音识别，支持 200+ 语种和方言
+          <p className="text-xl text-base-content/70 max-w-2xl mx-auto leading-relaxed">
+            利用最先进的语音识别技术，快速将您的音视频转换为高精度的字幕文件。
+            <br className="hidden md:block" />
+            支持全球 200+ 种语言与方言，准确率高达 98%。
           </p>
-          <div className="flex flex-wrap justify-center gap-4 pt-4">
-            <div className="badge badge-lg badge-outline">高精度识别</div>
-            <div className="badge badge-lg badge-outline">多语言支持</div>
-            <div className="badge badge-lg badge-outline">快速转写</div>
-            <div className="badge badge-lg badge-outline">一键下载</div>
+          
+          {/* Features Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto pt-8 text-left">
+            <div className="p-6 rounded-2xl bg-base-200/50 border border-base-200 hover:border-primary/30 transition-colors">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4 text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                </svg>
+              </div>
+              <h3 className="font-bold text-lg mb-2">极速转写</h3>
+              <p className="text-sm text-base-content/70">1小时音频仅需5分钟即可完成转写，大幅提升工作效率。</p>
+            </div>
+            <div className="p-6 rounded-2xl bg-base-200/50 border border-base-200 hover:border-primary/30 transition-colors">
+              <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center mb-4 text-secondary">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
+                </svg>
+              </div>
+              <h3 className="font-bold text-lg mb-2">多语种支持</h3>
+              <p className="text-sm text-base-content/70">支持中文方言、英语、日语等全球几十种主流语言的自动识别。</p>
+            </div>
+            <div className="p-6 rounded-2xl bg-base-200/50 border border-base-200 hover:border-primary/30 transition-colors">
+              <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center mb-4 text-accent">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
+                </svg>
+              </div>
+              <h3 className="font-bold text-lg mb-2">高准确率</h3>
+              <p className="text-sm text-base-content/70">基于深度学习模型，在复杂环境下也能保持极高的识别准确率。</p>
+            </div>
           </div>
         </div>
 
-        {/* Form Card */}
-        <div className="card bg-base-100 shadow-xl">
-          <div className="card-body p-6 md:p-8">
-            <h2 className="card-title text-2xl mb-6">开始转换</h2>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Drag and Drop File Upload */}
+        {/* Main Converter Card */}
+        <div className="card bg-base-100 shadow-xl border border-base-200 overflow-hidden">
+          <div className="bg-base-200/30 px-8 py-4 border-b border-base-200 flex justify-between items-center">
+            <h2 className="font-bold text-lg flex items-center gap-2">
+              <span className="w-2 h-6 bg-primary rounded-full"></span>
+              创建新任务
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowHistory(!showHistory)}
+              className="btn btn-outline btn-primary btn-sm gap-2"
+              disabled={loading}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              历史记录 ({history.length})
+            </button>
+          </div>
+          
+          <div className="card-body p-6 md:p-10">
+            <form onSubmit={handleSubmit} className="space-y-8">
+              {/* File Upload */}
               <div className="form-control w-full">
                 <label className="label">
-                  <span className="label-text font-semibold">选择音频文件</span>
-                  <span className="label-text-alt text-xs">MP3, WAV, M4A</span>
+                  <span className="label-text font-semibold text-base">上传音频文件</span>
+                  <span className="label-text-alt text-base-content/60">支持 MP3, WAV, M4A (最大 500MB)</span>
                 </label>
                 <div
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
-                  className={`relative border-2 border-dashed rounded-lg p-8 transition-all duration-300 ${
+                  className={`relative border-2 border-dashed rounded-xl p-10 transition-all duration-300 text-center group ${
                     isDragging
-                      ? "border-primary bg-primary/10 scale-105"
+                      ? "border-primary bg-primary/5"
                       : file
                       ? "border-success bg-success/5"
                       : "border-base-300 hover:border-primary/50 hover:bg-base-200/50"
@@ -320,379 +404,425 @@ export default function Home() {
                     type="file"
                     accept="audio/*"
                     onChange={handleFileChange}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                     disabled={loading}
                     id="file-input"
                   />
-                  <div className="text-center space-y-3">
-                    {file ? (
-                      <>
-                        <div className="text-5xl">✅</div>
-                        <div className="space-y-1">
-                          <p className="font-bold text-lg text-success">{file.name}</p>
-                          <p className="text-sm text-base-content/60">
-                            {(file.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </div>
-                        <label
-                          htmlFor="file-input"
-                          className="btn btn-sm btn-outline btn-primary"
-                        >
-                          更换文件
-                        </label>
-                      </>
-                    ) : (
-                      <>
-                        <div className="text-5xl">
-                          {isDragging ? "📥" : "🎵"}
-                        </div>
-                        <div className="space-y-1">
-                          <p className="font-bold text-lg">
-                            {isDragging ? "松开鼠标上传文件" : "拖拽文件到这里"}
-                          </p>
-                          <p className="text-sm text-base-content/60">
-                            或点击选择文件
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap justify-center gap-2 pt-2">
-                          <div className="badge badge-outline">MP3</div>
-                          <div className="badge badge-outline">WAV</div>
-                          <div className="badge badge-outline">M4A</div>
-                          <div className="badge badge-outline">其他音频格式</div>
-                        </div>
-                      </>
-                    )}
-                  </div>
+                  
+                  {file ? (
+                    <div className="space-y-4">
+                      <div className="w-16 h-16 rounded-full bg-success/10 text-success flex items-center justify-center mx-auto">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-bold text-lg">{file.name}</p>
+                        <p className="text-sm text-base-content/60">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                      </div>
+                      <button type="button" className="btn btn-sm btn-outline btn-success relative z-20">更换文件</button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="w-16 h-16 rounded-full bg-base-200 text-base-content/40 flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-bold text-lg">点击或拖拽文件到此处</p>
+                        <p className="text-sm text-base-content/60 mt-1">支持常见音频格式</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Language Selection Cards */}
+              {/* Language Selection */}
               <div className="form-control w-full">
                 <label className="label">
-                  <span className="label-text font-semibold">选择识别语言</span>
+                  <span className="label-text font-semibold text-base">识别语言</span>
                 </label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div
                     onClick={() => !loading && setLanguage("autodialect")}
-                    className={`card cursor-pointer transition-all duration-200 ${
+                    className={`relative flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
                       language === "autodialect"
-                        ? "bg-base-300 border-2 border-base-content/30 shadow-md"
-                        : "bg-base-200 border-2 border-transparent hover:border-base-content/20 hover:shadow"
+                        ? "border-primary bg-primary/5"
+                        : "border-base-200 hover:border-base-300"
                     } ${loading ? "opacity-50 pointer-events-none" : ""}`}
                   >
-                    <div className="card-body p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="space-y-1.5 flex-1">
-                          <h3 className="font-bold text-base">
-                            🌏 中英 + 方言
-                          </h3>
-                          <p className="text-xs text-base-content/70">
-                            支持中文、英文及 202 种方言识别
-                          </p>
-                          <div className="flex flex-wrap gap-1 pt-0.5">
-                            <div className="badge badge-sm badge-ghost">普通话</div>
-                            <div className="badge badge-sm badge-ghost">粤语</div>
-                            <div className="badge badge-sm badge-ghost">四川话</div>
-                            <div className="badge badge-sm badge-ghost">英语</div>
-                          </div>
-                        </div>
-                        {language === "autodialect" && (
-                          <div className="flex-shrink-0">
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-5 w-5 text-base-content"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2.5"
-                                d="M5 13l4 4L19 7"
-                              />
-                            </svg>
-                          </div>
-                        )}
-                      </div>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${language === "autodialect" ? "border-primary" : "border-base-300"}`}>
+                      {language === "autodialect" && <div className="w-2.5 h-2.5 rounded-full bg-primary"></div>}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold">中英 + 方言</h3>
+                      <p className="text-xs text-base-content/60 mt-1">支持中文、英文及 200+ 种方言</p>
                     </div>
                   </div>
 
                   <div
                     onClick={() => !loading && setLanguage("autominor")}
-                    className={`card cursor-pointer transition-all duration-200 ${
+                    className={`relative flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
                       language === "autominor"
-                        ? "bg-base-300 border-2 border-base-content/30 shadow-md"
-                        : "bg-base-200 border-2 border-transparent hover:border-base-content/20 hover:shadow"
+                        ? "border-primary bg-primary/5"
+                        : "border-base-200 hover:border-base-300"
                     } ${loading ? "opacity-50 pointer-events-none" : ""}`}
                   >
-                    <div className="card-body p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="space-y-1.5 flex-1">
-                          <h3 className="font-bold text-base">
-                            🌍 多语种
-                          </h3>
-                          <p className="text-xs text-base-content/70">
-                            支持 37 个主流语种自动识别
-                          </p>
-                          <div className="flex flex-wrap gap-1 pt-0.5">
-                            <div className="badge badge-sm badge-ghost">English</div>
-                            <div className="badge badge-sm badge-ghost">日本語</div>
-                            <div className="badge badge-sm badge-ghost">한국어</div>
-                            <div className="badge badge-sm badge-ghost">Français</div>
-                          </div>
-                        </div>
-                        {language === "autominor" && (
-                          <div className="flex-shrink-0">
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-5 w-5 text-base-content"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2.5"
-                                d="M5 13l4 4L19 7"
-                              />
-                            </svg>
-                          </div>
-                        )}
-                      </div>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${language === "autominor" ? "border-primary" : "border-base-300"}`}>
+                      {language === "autominor" && <div className="w-2.5 h-2.5 rounded-full bg-primary"></div>}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold">多语种混合</h3>
+                      <p className="text-xs text-base-content/60 mt-1">支持日语、韩语、法语等 37 种语言</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="divider my-2"></div>
-
-              <div className="flex flex-col gap-3">
+              <div className="pt-4">
                 <button
                   type="submit"
                   disabled={!file || loading}
-                  className="btn btn-primary w-full btn-lg shadow-lg text-lg font-bold"
+                  className="btn btn-primary w-full btn-lg text-lg font-bold shadow-lg hover:shadow-xl transition-all"
                 >
-                  {loading && <span className="loading loading-spinner"></span>}
-                  {loading ? "转换中..." : "🚀 开始转换"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowHistory(!showHistory)}
-                  className="btn btn-ghost btn-sm"
-                  disabled={loading}
-                >
-                  历史记录 ({history.length})
+                  {loading ? (
+                    <>
+                      <span className="loading loading-spinner"></span>
+                      正在处理...
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 mr-2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                      </svg>
+                      开始转换
+                    </>
+                  )}
                 </button>
               </div>
             </form>
           </div>
         </div>
 
-        {/* Progress Card */}
+        {/* Progress Section */}
         {loading && progressMessage && (
-          <div className="card bg-gradient-to-br from-info/10 to-info/5 shadow-2xl border border-info/30 smooth-transition">
+          <div className="card bg-base-100 shadow-lg border border-base-200 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="card-body">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="loading loading-spinner loading-lg text-info"></span>
-                <h3 className="card-title text-info text-xl">{progressMessage}</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-bold text-lg">{progressMessage}</h3>
+                <span className="text-primary font-mono font-bold">{Math.round(progressPercent)}%</span>
               </div>
-              {orderId && (
-                <div className="alert alert-info shadow-lg">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current shrink-0 w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                  <span className="font-mono text-sm">订单ID: {orderId}</span>
-                </div>
-              )}
-              <div className="space-y-3">
-                <progress 
-                  className="progress progress-info w-full h-6 shadow-sm" 
-                  value={progressPercent} 
-                  max="100"
-                ></progress>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-base-content/70 font-medium">{progressStage}</span>
-                  <span className="font-bold text-2xl text-info">{Math.round(progressPercent)}%</span>
-                </div>
+              <progress className="progress progress-primary w-full h-3" value={progressPercent} max="100"></progress>
+              <div className="flex justify-between text-xs text-base-content/60 mt-2">
+                <span>阶段: {progressStage}</span>
+                {orderId && <span className="font-mono">ID: {orderId}</span>}
               </div>
             </div>
           </div>
         )}
 
-        {/* History Card */}
-        {showHistory && (
-          <div className="card bg-base-100 shadow-2xl smooth-transition">
-            <div className="card-body p-6 md:p-8">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
-                <h2 className="text-3xl font-bold flex items-center gap-3">
-                  <span>📚</span>
-                  <span>历史记录</span>
-                </h2>
-                {history.length > 0 && (
-                  <button
-                    onClick={handleClearHistory}
-                    className="btn btn-error btn-outline btn-sm smooth-transition hover:btn-error"
-                  >
-                    🗑️ 清空全部
-                  </button>
-                )}
+        {/* Error Section */}
+        {error && (
+          <div className="alert alert-error shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <div>
+              <h3 className="font-bold">转换失败</h3>
+              <div className="text-sm">{error}</div>
+              {errorDetails && (
+                <div className="text-xs mt-1 opacity-80">
+                  {errorDetails.failType && <span>类型: {FAIL_TYPE_MAP[errorDetails.failType]} </span>}
+                  {errorDetails.orderId && <span>(ID: {errorDetails.orderId})</span>}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Result Section */}
+        {result && (
+          <div className="card bg-base-100 shadow-xl border border-base-200 scroll-mt-20" id="result-section">
+            <div className="card-body p-0">
+              <div className="bg-success/10 p-6 border-b border-success/20 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-success text-success-content flex items-center justify-center shadow-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-bold text-xl text-success-content/90">转换成功</h3>
+                  <p className="text-success-content/70 text-sm">字幕文件已生成，您可以预览或下载</p>
+                </div>
               </div>
               
-              {history.length === 0 ? (
-                <div className="hero py-16">
-                  <div className="hero-content text-center">
-                    <div className="max-w-md">
-                      <div className="text-7xl mb-6 opacity-20">📝</div>
-                      <h3 className="text-2xl font-bold text-base-content/60 mb-3">暂无历史记录</h3>
-                      <p className="text-base-content/50">转换成功后，记录会自动保存在这里</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
-                  {history.map((record, index) => (
-                    <div 
-                      key={record.id} 
-                      className="card bg-gradient-to-br from-base-200 to-base-100 hover:shadow-xl smooth-transition hover:scale-[1.02]"
-                      style={{ animationDelay: `${index * 50}ms` }}
-                    >
-                      <div className="card-body p-5">
-                        <div className="flex flex-col lg:flex-row justify-between gap-4">
-                          <div className="flex-1 space-y-3">
-                            <h3 className="font-bold text-lg break-all flex items-center gap-2">
-                              <span className="text-2xl">🎵</span>
-                              {record.fileName}
-                            </h3>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="badge badge-primary badge-lg gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="inline-block w-4 h-4 stroke-current"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path></svg>
-                                {record.languageLabel}
-                              </div>
-                              <div className="badge badge-ghost badge-lg">🎬 {record.segmentCount} 片段</div>
-                              <div className="badge badge-ghost">🕒 {new Date(record.createdAt).toLocaleString("zh-CN", { dateStyle: "short", timeStyle: "short" })}</div>
-                            </div>
-                          </div>
-                          <div className="flex gap-2 lg:flex-col lg:justify-center">
-                            <button
-                              onClick={() => handleViewHistory(record)}
-                              className="btn btn-primary btn-sm flex-1 lg:flex-none smooth-transition hover:scale-105"
-                            >
-                              👁️ 查看
-                            </button>
-                            <button
-                              onClick={() => handleDeleteHistory(record.id)}
-                              className="btn btn-error btn-outline btn-sm flex-1 lg:flex-none smooth-transition"
-                            >
-                              🗑️ 删除
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Error Card */}
-        {error && (
-          <div className="card bg-gradient-to-br from-error/10 to-error/5 shadow-2xl border border-error/30 smooth-transition">
-            <div className="card-body">
-              <div className="alert alert-error shadow-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-7 w-7" fill="none" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <div className="space-y-2 w-full">
-                  <p className="font-bold text-xl">{error}</p>
-                  {errorDetails && (
-                    <div className="mt-4 text-sm space-y-3">
-                      <div className="divider my-2 opacity-50"></div>
-                      <div className="grid gap-2">
-                        {errorDetails.orderId && (
-                          <div className="flex items-center gap-3 bg-error/5 p-3 rounded-lg">
-                            <span className="badge badge-error badge-outline">订单ID</span>
-                            <span className="font-mono flex-1">{errorDetails.orderId}</span>
-                          </div>
-                        )}
-                        {errorDetails.failType !== undefined && (
-                          <div className="flex items-start gap-3 bg-error/5 p-3 rounded-lg">
-                            <span className="badge badge-error badge-outline">失败类型</span>
-                            <span className="flex-1">{errorDetails.failType} - {FAIL_TYPE_MAP[errorDetails.failType] || "未知错误"}</span>
-                          </div>
-                        )}
-                        {errorDetails.status === "timeout" && (
-                          <div className="flex items-center gap-3 bg-error/5 p-3 rounded-lg">
-                            <span className="badge badge-error badge-outline">状态</span>
-                            <span className="flex-1">转写超时 (尝试 {errorDetails.attempts} 次)</span>
-                          </div>
-                        )}
-                        {errorDetails.originalDuration && (
-                          <div className="flex items-center gap-3 bg-error/5 p-3 rounded-lg">
-                            <span className="badge badge-error badge-outline">音频时长</span>
-                            <span className="flex-1">{(errorDetails.originalDuration / 1000).toFixed(2)} 秒</span>
-                          </div>
-                        )}
-                        {errorDetails.timestamp && (
-                          <div className="flex items-center gap-3 bg-error/5 p-3 rounded-lg">
-                            <span className="badge badge-error badge-outline">失败时间</span>
-                            <span className="flex-1">{new Date(errorDetails.timestamp).toLocaleString("zh-CN")}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Success Card */}
-        {result && (
-          <div className="card bg-gradient-to-br from-success/10 to-success/5 shadow-2xl border border-success/30 smooth-transition">
-            <div className="card-body p-6 md:p-8">
-              <div className="alert alert-success shadow-lg mb-6">
-                <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-7 w-7" fill="none" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <span className="text-xl font-bold">转换成功！字幕已生成</span>
-              </div>
-              <div className="space-y-5">
+              <div className="p-6 md:p-8 space-y-6">
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text font-bold text-lg flex items-center gap-2">
-                      <span>📝</span>
-                      <span>字幕内容预览</span>
-                    </span>
-                    <span className="label-text-alt badge badge-success badge-lg">
-                      {result.split('\n\n').filter(s => s.trim()).length} 个字幕片段
-                    </span>
+                    <span className="label-text font-bold">字幕预览</span>
+                    <span className="badge badge-ghost">{result.split('\n\n').filter(s => s.trim()).length} 个片段</span>
                   </label>
                   <textarea
-                    className="textarea textarea-bordered textarea-lg w-full h-96 font-mono text-sm leading-relaxed shadow-inner"
+                    className="textarea textarea-bordered w-full h-96 font-mono text-sm leading-relaxed bg-base-50"
                     value={result}
                     readOnly
                   />
                 </div>
+                <div className="flex justify-end">
+                  <button 
+                    onClick={handleDownload} 
+                    className="btn btn-success gap-2 shadow-md"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    下载 SRT 文件
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* History Section (Table View) */}
+        {showHistory && (
+          <div className="card bg-base-100 shadow-xl border border-base-200 animate-in fade-in zoom-in-95 duration-200">
+            <div className="card-body p-0">
+              <div className="p-6 border-b border-base-200 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <h2 className="font-bold text-xl flex items-center gap-2">
+                    <FiClock className="w-5 h-5 text-primary" />
+                    历史记录
+                  </h2>
+                  <span className="badge badge-ghost">{history.length}</span>
+                </div>
+                
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <div className="relative w-full md:w-64">
+                    <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40" />
+                    <input 
+                      type="text" 
+                      placeholder="搜索文件名..." 
+                      className="input input-bordered input-sm w-full pl-9"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
+                  {history.length > 0 && (
+                    <button
+                      onClick={handleClearHistory}
+                      className="btn btn-error btn-outline btn-sm gap-2"
+                    >
+                      <FiTrash2 className="w-4 h-4" />
+                      清空
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              {history.length === 0 ? (
+                <div className="p-16 text-center text-base-content/50 flex flex-col items-center gap-4">
+                  <div className="w-16 h-16 rounded-full bg-base-200 flex items-center justify-center">
+                    <FiClock className="w-8 h-8 opacity-50" />
+                  </div>
+                  <p>暂无历史记录</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="table w-full">
+                    <thead>
+                      <tr className="bg-base-200/50">
+                        <th className="pl-6">文件名</th>
+                        <th>语言</th>
+                        <th>片段数</th>
+                        <th>时间</th>
+                        <th className="text-right pr-6">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {history
+                        .filter(record => record.fileName.toLowerCase().includes(searchTerm.toLowerCase()))
+                        .map((record) => (
+                        <tr key={record.id} className="hover:bg-base-200/30 transition-colors group">
+                          <td className="pl-6">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                                <FiFileText className="w-5 h-5" />
+                              </div>
+                              <div className="font-medium max-w-xs truncate" title={record.fileName}>
+                                {record.fileName}
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="badge badge-sm badge-ghost gap-1">
+                              {record.languageLabel}
+                            </div>
+                          </td>
+                          <td>
+                            <span className="font-mono text-sm">{record.segmentCount}</span>
+                          </td>
+                          <td>
+                            <div className="flex flex-col text-xs text-base-content/70">
+                              <span className="flex items-center gap-1">
+                                <FiCalendar className="w-3 h-3" />
+                                {new Date(record.createdAt).toLocaleDateString()}
+                              </span>
+                              <span className="flex items-center gap-1 mt-0.5">
+                                <FiClock className="w-3 h-3" />
+                                {new Date(record.createdAt).toLocaleTimeString()}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="text-right pr-6">
+                            <div className="flex justify-end gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => handleViewHistory(record)}
+                                className="btn btn-ghost btn-square btn-sm text-primary tooltip tooltip-left"
+                                data-tip="查看详情"
+                              >
+                                <FiEye className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDownloadRecord(record)}
+                                className="btn btn-ghost btn-square btn-sm text-success tooltip tooltip-left"
+                                data-tip="下载字幕"
+                              >
+                                <FiDownload className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteHistory(record.id)}
+                                className="btn btn-ghost btn-square btn-sm text-error tooltip tooltip-left"
+                                data-tip="删除记录"
+                              >
+                                <FiTrash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* History Detail Modal */}
+        {selectedRecord && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+              <div className="p-6 border-b border-base-200 flex justify-between items-center bg-base-200/30">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                    <FiFileText className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg truncate max-w-md">{selectedRecord.fileName}</h3>
+                    <div className="flex items-center gap-3 text-sm text-base-content/60">
+                      <span className="flex items-center gap-1">
+                        <FiClock className="w-3 h-3" />
+                        {new Date(selectedRecord.createdAt).toLocaleString()}
+                      </span>
+                      <span>•</span>
+                      <span>{selectedRecord.segmentCount} 个片段</span>
+                      <span>•</span>
+                      <span className="badge badge-sm badge-ghost">{selectedRecord.languageLabel}</span>
+                    </div>
+                  </div>
+                </div>
                 <button 
-                  onClick={handleDownload} 
-                  className="btn btn-success w-full btn-lg gap-3 smooth-transition hover:scale-105 shadow-lg"
+                  onClick={() => setSelectedRecord(null)}
+                  className="btn btn-ghost btn-circle"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                  下载 SRT 字幕文件
+                  <FiX className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-6 bg-base-50">
+                <div className="bg-base-100 rounded-xl border border-base-200 shadow-sm">
+                  <div className="flex justify-between items-center p-3 border-b border-base-200 bg-base-50/50">
+                    <span className="text-xs font-bold text-base-content/50 uppercase tracking-wider px-2">SRT Content</span>
+                    <button 
+                      onClick={() => handleCopy(selectedRecord.srtContent)}
+                      className="btn btn-ghost btn-xs gap-1"
+                    >
+                      <FiCopy className="w-3 h-3" />
+                      复制内容
+                    </button>
+                  </div>
+                  <textarea
+                    className="w-full h-[50vh] p-4 font-mono text-sm leading-relaxed bg-transparent resize-none focus:outline-none"
+                    value={selectedRecord.srtContent}
+                    readOnly
+                  />
+                </div>
+              </div>
+              
+              <div className="p-6 border-t border-base-200 bg-base-100 flex justify-end gap-3">
+                <button 
+                  onClick={() => setSelectedRecord(null)}
+                  className="btn btn-ghost"
+                >
+                  关闭
+                </button>
+                <button 
+                  onClick={() => handleDownloadRecord(selectedRecord)}
+                  className="btn btn-primary gap-2"
+                >
+                  <FiDownload className="w-4 h-4" />
+                  下载 SRT 文件
                 </button>
               </div>
             </div>
           </div>
         )}
+      </main>
 
-        {/* Footer */}
-        <footer className="text-center py-8 text-base-content/50">
-          <div className="divider"></div>
-          <p className="text-sm">
-            Powered by AI • 支持 200+ 语种 • 高精度识别
-          </p>
-        </footer>
-      </div>
+      {/* Footer */}
+      <footer className="bg-base-200 text-base-content py-12 mt-12">
+        <div className="max-w-6xl mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="space-y-4">
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-primary">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+              </svg>
+              SubtitleAI
+            </h3>
+            <p className="text-sm text-base-content/70">
+              专业的音视频字幕生成工具，致力于为创作者提供高效、准确的字幕解决方案。
+            </p>
+          </div>
+          <div>
+            <h4 className="font-bold mb-4">产品</h4>
+            <ul className="space-y-2 text-sm text-base-content/70">
+              <li><a href="#" className="hover:text-primary">功能特性</a></li>
+              <li><a href="#" className="hover:text-primary">价格方案</a></li>
+              <li><a href="#" className="hover:text-primary">API 文档</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-bold mb-4">支持</h4>
+            <ul className="space-y-2 text-sm text-base-content/70">
+              <li><a href="#" className="hover:text-primary">帮助中心</a></li>
+              <li><a href="#" className="hover:text-primary">联系我们</a></li>
+              <li><a href="#" className="hover:text-primary">服务条款</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-bold mb-4">关注我们</h4>
+            <div className="flex gap-4">
+              <a href="#" className="btn btn-square btn-sm btn-ghost">
+                <svg fill="currentColor" viewBox="0 0 24 24" className="w-5 h-5"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/></svg>
+              </a>
+              <a href="#" className="btn btn-square btn-sm btn-ghost">
+                <svg fill="currentColor" viewBox="0 0 24 24" className="w-5 h-5"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div className="text-center mt-12 pt-8 border-t border-base-300 text-sm text-base-content/50">
+          <p>&copy; 2025 SubtitleAI. All rights reserved.</p>
+        </div>
+      </footer>
     </div>
   );
 }
