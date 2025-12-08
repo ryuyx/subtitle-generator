@@ -76,7 +76,7 @@ export class IFlyTekService {
   private generateDateTime(): string {
     const now = new Date();
     // 转换为北京时间(UTC+8)
-    const beijingTime = new Date(now.getTime() + (8 * 60 * 60 * 1000) + now.getTimezoneOffset() * 60 * 1000);
+    const beijingTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
     
     const year = beijingTime.getUTCFullYear();
     const month = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
